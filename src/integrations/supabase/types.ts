@@ -32,6 +32,108 @@ export type Database = {
         }
         Relationships: []
       }
+      segments: {
+        Row: {
+          created_at: string
+          distance_meters: number | null
+          first_visited_at: string
+          geometry: Json
+          id: string
+          last_visited_at: string
+          osm_way_id: string
+          updated_at: string
+          user_id: string
+          visit_count: number
+        }
+        Insert: {
+          created_at?: string
+          distance_meters?: number | null
+          first_visited_at?: string
+          geometry: Json
+          id?: string
+          last_visited_at?: string
+          osm_way_id: string
+          updated_at?: string
+          user_id: string
+          visit_count?: number
+        }
+        Update: {
+          created_at?: string
+          distance_meters?: number | null
+          first_visited_at?: string
+          geometry?: Json
+          id?: string
+          last_visited_at?: string
+          osm_way_id?: string
+          updated_at?: string
+          user_id?: string
+          visit_count?: number
+        }
+        Relationships: []
+      }
+      traces: {
+        Row: {
+          created_at: string
+          id: string
+          points: Json
+          processed: boolean
+          snapped_geometry: Json | null
+          summary: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points: Json
+          processed?: boolean
+          snapped_geometry?: Json | null
+          summary?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points?: Json
+          processed?: boolean
+          snapped_geometry?: Json | null
+          summary?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          preferences: Json | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
