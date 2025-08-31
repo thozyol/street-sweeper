@@ -10,12 +10,14 @@ interface MapLibreProps {
     geometry: GeoJSON.LineString;
     visitCount: number;
   }>;
+  gpsTrace?: Array<[number, number]>;
   isTracking?: boolean;
 }
 
 const MapLibre: React.FC<MapLibreProps> = ({ 
   onLocationUpdate, 
   paintedSegments = [], 
+  gpsTrace = [],
   isTracking = false 
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -121,6 +123,62 @@ const MapLibre: React.FC<MapLibreProps> = ({
           'line-blur': 2
         }
       }, 'painted-roads');
+
+      // Add GPS trace source
+      map.current?.addSource('gps-trace', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      // Add GPS trace layer with ETS2-style bright yellow
+      map.current?.addLayer({
+        id: 'gps-trace',
+        type: 'line',
+        source: 'gps-trace',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': 'hsl(51, 100%, 55%)', // Bright ETS2 yellow
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            8, 3,
+            12, 6,
+            16, 12
+          ],
+          'line-opacity': 0.9
+        }
+      });
+
+      // Add GPS trace glow effect
+      map.current?.addLayer({
+        id: 'gps-trace-glow',
+        type: 'line',
+        source: 'gps-trace',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': 'hsl(51, 100%, 65%)',
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            8, 6,
+            12, 12,
+            16, 24
+          ],
+          'line-opacity': 0.4,
+          'line-blur': 3
+        }
+      }, 'gps-trace');
     });
 
     return () => {
@@ -150,6 +208,30 @@ const MapLibre: React.FC<MapLibreProps> = ({
       });
     }
   }, [paintedSegments]);
+
+  // Update GPS trace
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+
+    if (gpsTrace.length > 1) {
+      const traceFeature = {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: gpsTrace
+        }
+      };
+
+      const source = map.current.getSource('gps-trace') as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData({
+          type: 'FeatureCollection',
+          features: [traceFeature]
+        });
+      }
+    }
+  }, [gpsTrace]);
 
   // Track user location
   useEffect(() => {
@@ -186,8 +268,14 @@ const MapLibre: React.FC<MapLibreProps> = ({
               .addTo(map.current);
           }
 
-          // Center map on user location (only first time)
-          if (!userLocation) {
+          // Continuously follow user when tracking (ETS2 style)
+          if (isTracking) {
+            map.current.easeTo({
+              center: newLocation,
+              duration: 1000
+            });
+          } else if (!userLocation) {
+            // Only center on first time if not tracking
             map.current.flyTo({
               center: newLocation,
               zoom: 16,

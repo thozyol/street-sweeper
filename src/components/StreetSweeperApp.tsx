@@ -33,6 +33,8 @@ const StreetSweeperApp: React.FC = () => {
   const [currentLocation, setCurrentLocation] = useState<LocationPoint | null>(null);
   const [locationHistory, setLocationHistory] = useState<LocationPoint[]>([]);
   const [paintedSegments, setPaintedSegments] = useState<PaintedSegment[]>([]);
+  const [currentTraceId, setCurrentTraceId] = useState<string | null>(null);
+  const [gpsTrace, setGpsTrace] = useState<Array<[number, number]>>([]);
   
   // Stats
   const [totalDistance, setTotalDistance] = useState(0);
@@ -92,6 +94,23 @@ const StreetSweeperApp: React.FC = () => {
           const distance = segments.reduce((sum, seg) => sum + (seg.distance_meters || 0), 0);
           setTotalDistance(distance);
         }
+
+        // Load latest GPS trace
+        const { data: traces, error: tracesError } = await supabase
+          .from('traces')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (tracesError) throw tracesError;
+
+        if (traces && traces.length > 0 && traces[0].points) {
+          const points = traces[0].points as any;
+          const traceCoords = points.map((p: any) => [p.lng, p.lat] as [number, number]);
+          setGpsTrace(traceCoords);
+          setCurrentTraceId(traces[0].id);
+        }
       } catch (error: any) {
         toast.error('Failed to load your data');
         console.error('Error loading user data:', error);
@@ -120,6 +139,18 @@ const StreetSweeperApp: React.FC = () => {
     setCurrentLocation(newLocation);
     
     if (isTracking) {
+      // Add to GPS trace
+      setGpsTrace(prev => {
+        const newTrace = [...prev, [lng, lat] as [number, number]];
+        
+        // Save trace to database periodically (every 10 points)
+        if (user && newTrace.length % 10 === 0) {
+          saveTraceToDatabase(newTrace);
+        }
+        
+        return newTrace;
+      });
+      
       setLocationHistory(prev => {
         const updated = [...prev, newLocation];
         
@@ -130,6 +161,9 @@ const StreetSweeperApp: React.FC = () => {
           const distance = calculateDistance(lastLocation.lat, lastLocation.lng, lat, lng);
           const speed = distance / timeDiff; // m/s
           setCurrentSpeed(speed);
+          
+          // Update total distance with actual GPS trace distance
+          setTotalDistance(prevTotal => prevTotal + distance);
         }
         
         // Mock street painting logic (in real app, this would use map matching)
@@ -160,7 +194,6 @@ const StreetSweeperApp: React.FC = () => {
                 };
                 
                 setStreetsDiscovered(prev => prev + 1);
-                setTotalDistance(prev => prev + distance);
                 
                 // Save to database if user is authenticated
                 if (user) {
@@ -177,6 +210,31 @@ const StreetSweeperApp: React.FC = () => {
       });
     }
   }, [isTracking, user]);
+
+  const saveTraceToDatabase = async (traceCoords: Array<[number, number]>) => {
+    try {
+      const points = traceCoords.map(([lng, lat]) => ({ lat, lng, timestamp: Date.now() }));
+      
+      if (currentTraceId) {
+        // Update existing trace
+        await supabase.from('traces').update({
+          points: points as any,
+          updated_at: new Date().toISOString()
+        }).eq('id', currentTraceId);
+      } else {
+        // Create new trace
+        const { data, error } = await supabase.from('traces').insert({
+          user_id: user?.id || '',
+          points: points as any
+        }).select().single();
+        
+        if (error) throw error;
+        if (data) setCurrentTraceId(data.id);
+      }
+    } catch (error) {
+      console.error('Failed to save trace:', error);
+    }
+  };
 
   const saveSegmentToDatabase = async (segment: PaintedSegment, distance: number) => {
     try {
@@ -220,6 +278,8 @@ const StreetSweeperApp: React.FC = () => {
     
     setIsTracking(true);
     setTrackingTime(0);
+    setGpsTrace([]); // Start fresh GPS trace
+    setCurrentTraceId(null); // Reset trace ID for new session
     toast.success('Started tracking your journey!');
   };
 
@@ -233,6 +293,12 @@ const StreetSweeperApp: React.FC = () => {
     setTrackingTime(0);
     setLocationHistory([]);
     setCurrentSpeed(0);
+    
+    // Save final trace to database
+    if (user && gpsTrace.length > 0) {
+      saveTraceToDatabase(gpsTrace);
+    }
+    
     toast.info('Tracking stopped');
   };
 
@@ -275,6 +341,7 @@ const StreetSweeperApp: React.FC = () => {
       <MapLibre 
         onLocationUpdate={handleLocationUpdate}
         paintedSegments={paintedSegments}
+        gpsTrace={gpsTrace}
         isTracking={isTracking}
       />
       
