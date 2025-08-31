@@ -188,6 +188,7 @@ const StreetSweeperApp: React.FC = () => {
                   id: segmentId,
                   geometry: {
                     type: 'LineString',
+                    // COORDINATE ORDER FIX: GeoJSON uses [lng, lat] not [lat, lng]
                     coordinates: [[lastPoint.lng, lastPoint.lat], [lng, lat]]
                   },
                   visitCount: 1
