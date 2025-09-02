@@ -130,7 +130,7 @@ const StreetSweeperApp: React.FC = () => {
     return () => clearInterval(interval);
   }, [isTracking]);
 
-  // Handle location updates with mobile optimization
+  // Handle location updates with real-time path drawing
   const handleLocationUpdate = useCallback((lat: number, lng: number, accuracy: number = 0) => {
     const now = Date.now();
     const newLocation: LocationPoint = { lat, lng, timestamp: now };
@@ -139,12 +139,12 @@ const StreetSweeperApp: React.FC = () => {
     setGpsAccuracy(accuracy); // Update GPS accuracy for HUD
     
     if (isTracking) {
-      // SMOOTH PATH DRAWING: Add every GPS point for continuous tracking
+      // REAL-TIME PATH DRAWING: Add every GPS point immediately for continuous tracking
       setGpsTrace(prev => {
         const newTrace = [...prev, [lng, lat] as [number, number]];
         
         // PERFORMANCE: Save trace to database less frequently for battery efficiency
-        if (user && newTrace.length % 20 === 0) { // Every 20 points instead of 10
+        if (user && newTrace.length % 15 === 0) { // Save every 15 points for better real-time performance
           saveTraceToDatabase(newTrace);
         }
         
@@ -154,14 +154,14 @@ const StreetSweeperApp: React.FC = () => {
       setLocationHistory(prev => {
         const updated = [...prev, newLocation];
         
-        // Calculate speed and distance with smooth updates
+        // Calculate speed and distance for every GPS update
         if (prev.length > 0) {
           const lastLocation = prev[prev.length - 1];
           const timeDiff = (now - lastLocation.timestamp) / 1000; // seconds
           const distance = calculateDistance(lastLocation.lat, lastLocation.lng, lat, lng);
           
-          // MOBILE OPTIMIZATION: Only update if significant movement
-          if (distance > 1) { // 1 meter threshold for mobile
+          // Update speed and distance for every movement (no minimum threshold for real-time tracking)
+          if (distance > 0.5) { // Very small threshold to capture all meaningful movement
             const speed = distance / timeDiff; // m/s
             setCurrentSpeed(speed);
             setTotalDistance(prevTotal => prevTotal + distance);

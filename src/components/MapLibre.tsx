@@ -233,23 +233,13 @@ const MapLibre: React.FC<MapLibreProps> = ({
     }
   }, [gpsTrace]);
 
-  // Optimized GPS tracking for mobile with smooth path drawing
+  // Real-time GPS tracking with optimized polling interval
   useEffect(() => {
     if (!isTracking) return;
-
-    let lastUpdateTime = 0;
-    const MIN_UPDATE_INTERVAL = 1000; // 1 second minimum between updates
-    const MIN_MOVEMENT_THRESHOLD = 3; // 3 meters minimum movement
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        const currentTime = Date.now();
-        
-        // PERFORMANCE: Throttle updates for battery efficiency
-        if (currentTime - lastUpdateTime < MIN_UPDATE_INTERVAL) {
-          return;
-        }
         
         // DEBUGGING: Log position data (console only, no UI overlay)
         console.log('GPS:', {
@@ -265,22 +255,11 @@ const MapLibre: React.FC<MapLibreProps> = ({
           return;
         }
         
-        // MOVEMENT FILTER: Only update if significant movement detected
-        if (userLocation) {
-          const [prevLng, prevLat] = userLocation;
-          const distance = calculateDistance(prevLat, prevLng, latitude, longitude);
-          
-          if (distance < MIN_MOVEMENT_THRESHOLD) {
-            return; // Don't update for minimal movements
-          }
-        }
-        
         // COORDINATE ORDER: MapLibre/GeoJSON uses [lng, lat]
         const newLocation: [number, number] = [longitude, latitude];
         
         setUserLocation(newLocation);
         onLocationUpdate?.(latitude, longitude, accuracy); // Pass accuracy to parent
-        lastUpdateTime = currentTime;
 
         if (map.current) {
           // Update user location marker with smooth animation
@@ -320,17 +299,17 @@ const MapLibre: React.FC<MapLibreProps> = ({
         // Don't show toast errors for better mobile UX during poor GPS signal
       },
       {
-        // MOBILE-OPTIMIZED GPS OPTIONS for battery efficiency
+        // REAL-TIME GPS OPTIONS: 5-10 second polling interval for battery efficiency
         enableHighAccuracy: true,
         timeout: 15000, // Longer timeout for mobile
-        maximumAge: 5000 // Allow slightly older positions for battery savings
+        maximumAge: 7500 // 7.5 seconds - middle of 5-10 second range for optimal polling
       }
     );
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [isTracking, onLocationUpdate, userLocation]);
+  }, [isTracking, onLocationUpdate]);
 
   // Helper function for distance calculation
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
