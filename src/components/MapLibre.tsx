@@ -24,7 +24,6 @@ const MapLibre: React.FC<MapLibreProps> = ({
   const map = useRef<maplibregl.Map | null>(null);
   const userLocationMarker = useRef<maplibregl.Marker | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [debugInfo, setDebugInfo] = useState<{lat: number, lng: number, accuracy: number} | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -260,9 +259,6 @@ const MapLibre: React.FC<MapLibreProps> = ({
         // COORDINATE ORDER: MapLibre/GeoJSON uses [lng, lat]
         const newLocation: [number, number] = [longitude, latitude];
         
-        // Update debug info for overlay
-        setDebugInfo({ lat: latitude, lng: longitude, accuracy });
-        
         setUserLocation(newLocation);
         onLocationUpdate?.(latitude, longitude);
 
@@ -326,19 +322,6 @@ const MapLibre: React.FC<MapLibreProps> = ({
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
-      
-      {/* GPS Debug Overlay */}
-      {debugInfo && (
-        <div className="absolute top-16 left-4 z-20 bg-black/80 text-white p-3 rounded-lg font-mono text-sm">
-          <div className="text-yellow-400 font-bold mb-1">GPS DEBUG</div>
-          <div>Lat: {debugInfo.lat.toFixed(7)}</div>
-          <div>Lng: {debugInfo.lng.toFixed(7)}</div>
-          <div>Acc: {debugInfo.accuracy.toFixed(1)}m</div>
-          <div className="text-xs text-gray-400 mt-1">
-            Compare with Google Maps
-          </div>
-        </div>
-      )}
       
       {/* Map overlay effects */}
       <div className="absolute inset-0 pointer-events-none">
