@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { toast } from 'sonner';
 
 interface MapLibreProps {
-  onLocationUpdate?: (lat: number, lng: number) => void;
+  onLocationUpdate?: (lat: number, lng: number, accuracy?: number) => void;
   paintedSegments?: Array<{
     id: string;
     geometry: GeoJSON.LineString;
@@ -233,37 +233,57 @@ const MapLibre: React.FC<MapLibreProps> = ({
     }
   }, [gpsTrace]);
 
-  // Track user location with enhanced accuracy and debugging
+  // Optimized GPS tracking for mobile with smooth path drawing
   useEffect(() => {
     if (!isTracking) return;
+
+    let lastUpdateTime = 0;
+    const MIN_UPDATE_INTERVAL = 1000; // 1 second minimum between updates
+    const MIN_MOVEMENT_THRESHOLD = 3; // 3 meters minimum movement
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
+        const currentTime = Date.now();
         
-        // DEBUGGING: Log full position object
-        console.log('POS:', {
-          lat: latitude,
-          lng: longitude, 
-          accuracy: accuracy,
-          timestamp: new Date().toISOString(),
-          coords: position.coords
+        // PERFORMANCE: Throttle updates for battery efficiency
+        if (currentTime - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+          return;
+        }
+        
+        // DEBUGGING: Log position data (console only, no UI overlay)
+        console.log('GPS:', {
+          lat: latitude.toFixed(7),
+          lng: longitude.toFixed(7), 
+          accuracy: accuracy.toFixed(1),
+          timestamp: new Date().toISOString()
         });
         
-        // ACCURACY FILTER: Skip noisy GPS fixes
+        // ACCURACY FILTER: Skip noisy GPS fixes for smooth tracking
         if (accuracy > 50) {
           console.log('GPS: Skipping inaccurate fix, accuracy:', accuracy);
           return;
+        }
+        
+        // MOVEMENT FILTER: Only update if significant movement detected
+        if (userLocation) {
+          const [prevLng, prevLat] = userLocation;
+          const distance = calculateDistance(prevLat, prevLng, latitude, longitude);
+          
+          if (distance < MIN_MOVEMENT_THRESHOLD) {
+            return; // Don't update for minimal movements
+          }
         }
         
         // COORDINATE ORDER: MapLibre/GeoJSON uses [lng, lat]
         const newLocation: [number, number] = [longitude, latitude];
         
         setUserLocation(newLocation);
-        onLocationUpdate?.(latitude, longitude);
+        onLocationUpdate?.(latitude, longitude, accuracy); // Pass accuracy to parent
+        lastUpdateTime = currentTime;
 
         if (map.current) {
-          // Update user location marker
+          // Update user location marker with smooth animation
           if (userLocationMarker.current) {
             userLocationMarker.current.setLngLat(newLocation);
           } else {
@@ -285,32 +305,25 @@ const MapLibre: React.FC<MapLibreProps> = ({
               .addTo(map.current);
           }
 
-          // CONTINUOUS MAP FOLLOWING: Always center on user when tracking
+          // SMOOTH MAP FOLLOWING: Center on user with smooth animation
           if (isTracking) {
             map.current.easeTo({
               center: newLocation,
-              duration: 1000,
-              essential: true // Don't interrupt for user interaction
-            });
-          } else if (!userLocation) {
-            // Initial centering only
-            map.current.flyTo({
-              center: newLocation,
-              zoom: 16,
-              duration: 2000
+              duration: 800, // Slightly faster for mobile responsiveness
+              essential: true
             });
           }
         }
       },
       (error) => {
         console.error('GPS Error:', error);
-        toast.error(`Location error: ${error.message}`);
+        // Don't show toast errors for better mobile UX during poor GPS signal
       },
       {
-        // ENHANCED GPS OPTIONS
+        // MOBILE-OPTIMIZED GPS OPTIONS for battery efficiency
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 2000
+        timeout: 15000, // Longer timeout for mobile
+        maximumAge: 5000 // Allow slightly older positions for battery savings
       }
     );
 
@@ -318,6 +331,22 @@ const MapLibre: React.FC<MapLibreProps> = ({
       navigator.geolocation.clearWatch(watchId);
     };
   }, [isTracking, onLocationUpdate, userLocation]);
+
+  // Helper function for distance calculation
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lng2-lng1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
 
   return (
     <div className="relative w-full h-full">

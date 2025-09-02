@@ -108,7 +108,20 @@
   .animate-float {
     animation: float 3s ease-in-out infinite;
   }
-}
+  
+  /* Mobile-specific classes */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Touch-friendly animations */
+  .touch-feedback {
+    transition: transform 0.1s ease-out;
+  }
+  
+  .touch-feedback:active {
+    transform: scale(0.95);
+  }
 
 @layer base {
   * {
